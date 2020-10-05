@@ -84,6 +84,16 @@ class Episode:
         """
         self._episode.extend([*tensors])
 
+    def process_observations(self, f: callable) -> None:
+        """
+        Apply a function to all observations. All observations are replaced with the output of the function
+        :param f: a callable to modify the observations. Should accept one argument: the original image tensor
+        """
+        # An episode consists of:
+        # o_0, a_0, r_1, o_1, a_1, ... , o_{T - 1}, a_{T - 1}, r_T, o_T
+        for t in range(0, len(self), 3):
+            self._episode[t] = f(self._episode[t])
+
     @property
     def observations(self) -> tuple:
         """
@@ -94,7 +104,6 @@ class Episode:
         # o_0, a_0, r_1, o_1, a_1, ... , o_{T - 1}, a_{T - 1}, r_T, o_T
         for t in range(0, len(self), 3):
             observations.append(self._episode[t])
-        # observations.append(self._episode[-1])  # Get the final observation
         return tuple(observations)
 
     @property

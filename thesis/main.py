@@ -9,10 +9,11 @@ from torch.nn import Module
 
 from thesis.environment.util import postprocess_observation
 from thesis.main_args import get_parsed_arguments
-from thesis.main_helpers_data import init_data, data_to_episodes
+from thesis.main_helpers_data import init_data, data_to_episodes, collect_data
 from thesis.main_helpers_init import select_device, init_env_from_args, init_planner_env_from_args, \
     init_value_model_from_args, \
-    init_planner_from_args, init_value_model_trainer_from_args, init_planner_env_trainer_from_args
+    init_planner_from_args, init_value_model_trainer_from_args, init_planner_env_trainer_from_args,\
+    init_eval_planner_from_args
 
 from thesis.data.experience_replay_episodes import ExperienceReplay
 from thesis.rssm.rssm import RSSM
@@ -22,8 +23,6 @@ from thesis.util.logging import Log
 
 # TODO -- exploration noise
 # TODO -- argument controlling output device of environments
-# TODO -- argument skipping planning for first couple of iterations
-# TODO -- evaluation
 
 
 def save_checkpoint(path: str,
@@ -67,52 +66,8 @@ def run(args: argparse.Namespace):
     '''
 
     # Check if the run should be initialized from a checkpoint
-    if hasattr(args, 'checkpoint'):
-        # Get the checkpoint
-        path_to_checkpoint = args.checkpoint
-        checkpoint = load_checkpoint(path_to_checkpoint)
-
-        args = checkpoint['args']
-
-        # Create a log
-        log = Log(args)
-        log.log_message('')
-        log.log_message(f'Starting from checkpoint {path_to_checkpoint}')
-        log.log_message('')
-
-        # Select the device on which models are run
-        use_cuda, device = select_device(args, ctx=locals())
-
-        dataset = checkpoint['dataset']
-
-        # Build the environment used for data collection
-        env = init_env_from_args(args, ctx=locals())
-
-        # Build an additional environment for planning
-        env_planning = checkpoint.get('env_model',
-                                      init_planner_env_from_args(args, ctx=locals())
-                                      )
-        if isinstance(env_planning, torch.nn.Module):
-            env_planning = env_planning.to(device)
-
-        # Optionally, initialize a value function model
-        value_model = checkpoint.get('value_model',
-                                     init_value_model_from_args(args, ctx=locals())  # Can be None
-                                     )
-        if isinstance(value_model, torch.nn.Module):
-            value_model = value_model.to(device)
-
-        # Initialize the planner
-        planner = init_planner_from_args(args, ctx=locals())
-
-        # The PlaNet model assumes some known initial state
-        init_observation = checkpoint['init_observation']
-        init_state = checkpoint['init_state']
-
-        # Keep iteration counter
-        iter_count = checkpoint['iter_count'] + 1
-
-    else:
+    if not hasattr(args, 'checkpoint'):
+        # No checkpoint given
 
         # Create a log
         log = Log(args)
@@ -141,8 +96,10 @@ def run(args: argparse.Namespace):
         # Optionally, initialize a value function model
         value_model = init_value_model_from_args(args, ctx=locals())  # Can be None
 
-        # Initialize the planner
+        # Initialize the planner used for data collection
         planner = init_planner_from_args(args, ctx=locals())
+        # Initialize the planner used for evaluation
+        planner_eval = init_eval_planner_from_args(args, ctx=locals())
 
         # The PlaNet model assumes some known initial state
         init_observation, _, _ = env.reset()
@@ -150,6 +107,71 @@ def run(args: argparse.Namespace):
 
         # Keep iteration counter
         iter_count = 1
+
+    else:
+        # User specified a checkpoint
+
+        # Get the checkpoint
+        path_to_checkpoint = args.checkpoint
+        checkpoint = load_checkpoint(path_to_checkpoint)
+
+        # Get the args from the checkpoint
+        original_args = checkpoint['args']
+
+        # Verify that the old log files are not overwritten
+        # That is, the user should have specified a different log file
+        if not hasattr(args, 'log_directory') or\
+                getattr(args, 'log_directory') == getattr(original_args, 'log_directory'):
+            raise Exception('Old log files should not be overwritten! Specify a different log directory using the '
+                            '`--log_directory` argument!')
+
+        # Create a log
+        log = Log(args)
+        log.log_message('')
+        log.log_message(f'Starting from checkpoint {path_to_checkpoint}')
+        log.log_message('')
+
+        # Any args specified for this run will overwrite the old args
+        for attr, val in vars(args).items():
+            original_val = getattr(original_args, attr) if hasattr(original_args, attr) else '<Not specified>'
+            if original_val != val:
+                setattr(original_args, attr, val)
+                log.log_message(f'  Argument {attr} overwritten from {original_val} to {val}')
+        args = original_args
+
+        # Select the device on which models are run
+        use_cuda, device = select_device(args, ctx=locals())
+
+        dataset = checkpoint['dataset']
+
+        # Build the environment used for data collection
+        env = init_env_from_args(args, ctx=locals())
+
+        # Build an additional environment for planning
+        env_planning = checkpoint.get('env_model',
+                                      init_planner_env_from_args(args, ctx=locals())
+                                      )
+        if isinstance(env_planning, torch.nn.Module):
+            env_planning = env_planning.to(device)
+
+        # Optionally, initialize a value function model
+        value_model = checkpoint.get('value_model',
+                                     init_value_model_from_args(args, ctx=locals())  # Can be None
+                                     )
+        if isinstance(value_model, torch.nn.Module):
+            value_model = value_model.to(device)
+
+        # Initialize the planner used for data collection
+        planner = init_planner_from_args(args, ctx=locals())
+        # Initialize the planner used for evaluation
+        planner_eval = init_eval_planner_from_args(args, ctx=locals())
+
+        # The PlaNet model assumes some known initial state
+        init_observation = checkpoint['init_observation']
+        init_state = checkpoint['init_state']
+
+        # Keep iteration counter
+        iter_count = checkpoint['iter_count'] + 1
 
     '''
     
@@ -191,6 +213,7 @@ def run(args: argparse.Namespace):
             env_planning_trainer.train(env_planning,
                                        args.train_batch_size,
                                        log=log,
+                                       log_prefix=f'iter_{iter_count}',
                                        device=device)
 
         '''
@@ -201,79 +224,44 @@ def run(args: argparse.Namespace):
 
         # DATA COLLECTION PHASE
         log.log_message(f'Data collection phase {iter_count}')
+        log.log_message(f'      Dataset size: [{dataset.num_episodes}/{args.max_episodes_buffer}]')
 
-        # Log the predicted and true rewards during data collection
-        reward_log = f'iter_{iter_count}_rewards'
-        log.create_log(reward_log, 't', 'true reward', 'predicted reward', 'difference')
-        # Log the predicted and true observations during data collection
-        observation_log = f'iter_{iter_count}_observations'
-        log.create_image_folder(observation_log)
+        if not args.disable_data_collection:
+            episodes, info = collect_data(
+                env=env,
+                planner=planner,
+                env_planning=env_planning,
+                args=args,
+                log=log,
+                fixed_start=(init_observation, init_state),
+                log_prefix=f'iter_{iter_count}_collect',
+                progress_desc='Data collection'
+            )
+            dataset.append_episodes(episodes)
 
-        # Build a progress bar for data collection (if episode length is known)
-        progress = tqdm(desc=f'Data Collection {iter_count}',
-                        total=args.max_episode_length)\
-            if args.max_episode_length != np.inf else None
+        '''
+        
+            EVALUATION PHASE
+            
+        '''
 
-        with torch.no_grad():
-            # Reset the environment, set to initial state
-            observation, env_terminated, info = env.reset()
-            observation = init_observation
-            env.set_state(init_state)
-            # Reset the planning environment
-            env_planning.reset()
-            # If complete observability is assumed, make sure the planning env shares state
-            if type(env) == type(env_planning):
-                env_planning.set_state(env.get_state())
-                env_planning.set_seed(env.get_seed())  # TODO -- seed properly
+        if iter_count % args.evaluation_period == 0:
 
-            # Execute an episode (batch) in the environment
-            episode_data = [observation]
-            while not all(env_terminated):
-                # Plan action a_t in an environment model
-                action, plan_info = planner.plan(env_planning)
-                # Obtain o_{t+1}, r_{t+1}, f_{t+1} by executing a_t in the environment
-                observation, reward, env_terminated, info = env.step(action)
-
-                # Perform the action in the planning environment as well
-                if isinstance(env_planning, RSSM):
-                    observation_prediction, reward_prediction, _, _ = env_planning.step(action,
-                                                                                        true_observation=observation)
-                    observation_prediction.cpu()
-                    reward_prediction.cpu()
-                else:
-                    observation_prediction, reward_prediction, _, _ = env_planning.step(action)
-
-                # Log the obtained and predicted reward
-                # TODO -- support for environment batches
-                r_true, r_pred = reward[0].item(), reward_prediction[0].item()
-                log.log_values(reward_log, env.t, r_true, r_pred, abs(r_true - r_pred))
-                # Log the obtained and predicted observation
-                o_true = postprocess_observation(observation, args.bit_depth, dtype=torch.float32)[0]
-                o_pred = postprocess_observation(observation_prediction, args.bit_depth, dtype=torch.float32)[0]
-                log.log_observations(observation_log, f'observations_t_{env.t}', o_true, o_pred)
-
-                # Extend the episode using the obtained information
-                episode_data.extend([action, reward, env_terminated, observation])
-
-                if progress is not None:  # TODO -- cleaner
-                    progress.update(1)
-                    progress.set_postfix_str(
-                        f't: {env.t}, '
-                        f'r_true: {reward[0].item():.3f}, '
-                        f'r_pred: {reward_prediction[0].item():.3f}, '
-                        f'dataset size: {dataset.num_episodes}',
-                        refresh=True
-                    )
-
-            # Append the collected data to the dataset
-            dataset.append_episodes(data_to_episodes(episode_data))
-
-            if progress is not None:
-                progress.close()
-                print('\n')
+            log.log_message(f'Evaluation phase')
+            collect_data(
+                env=env,
+                planner=planner_eval,
+                env_planning=env_planning,
+                args=args,
+                log=log,
+                fixed_start=(init_observation, init_state),
+                log_prefix=f'iter_{iter_count}_eval',
+                progress_desc='Evaluation'
+            )
 
         # Save checkpoint if required
         if iter_count % args.checkpoint_period == 0:
+            log.log_message('Saving checkpoint')
             save_checkpoint(
                 path=f'{args.log_directory}/iter_{iter_count}_checkpoint.pth',
                 args=args,
@@ -294,6 +282,7 @@ def run(args: argparse.Namespace):
 if __name__ == '__main__':
 
     from thesis.environment.env_gym import GYM_ENVS
+    from thesis.environment.env_suite import CONTROL_SUITE_ENVS
 
     from thesis.main_args import get_placeholder_args
 
@@ -306,8 +295,8 @@ if __name__ == '__main__':
 
     # _args.experience_size = 10000
 
-    # _args.environment_name = CONTROL_SUITE_ENVS[1]
-    _args.environment_name = GYM_ENVS[0]
+    _args.environment_name = CONTROL_SUITE_ENVS[7]
+    # _args.environment_name = GYM_ENVS[0]
 
     _args.plan_env_type = 'rssm'
     # _args.plan_env_type = 'true'
@@ -325,10 +314,18 @@ if __name__ == '__main__':
     _args.rssm_sample_mean = True
 
     # _args.checkpoint_period = 1
-    _args.checkpoint_period = 20
+    _args.checkpoint_period = np.inf
+    _args.evaluation_period = 50
+
+    # _args.disable_data_collection = True
+    # _args.disable_training = True
+    _args.num_train_sequences = 1
 
     # _args.planner = 'cem'
     # _args.state_observations = True
+
+    # _args.data_augmentations = []
+    # _args.data_augmentations = ['random_translate']
 
     # _args.checkpoint = '../logs/log_test/iter_1_checkpoint.pth'
 

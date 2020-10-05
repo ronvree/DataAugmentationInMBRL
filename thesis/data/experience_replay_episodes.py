@@ -9,6 +9,7 @@ from torch.utils.data import Dataset, TensorDataset
 
 from thesis.data.episode import Episode
 from thesis.util.func import batch_tensors
+from thesis.environment.util import preprocess_observation_tensor, postprocess_observation
 
 
 class ExperienceReplay:
@@ -31,6 +32,7 @@ class ExperienceReplay:
         :param args: argparse.Namespace object containing hyperparameters
         """
         self._max_num_episodes = args.max_episodes_buffer
+        self._bit_depth = args.bit_depth
 
         self._episode_length = episode_length
 
@@ -77,6 +79,9 @@ class ExperienceReplay:
         """
         assert len(episode) == self._episode_length
         episode.to(torch.device('cpu'))
+        # Preprocess the images so they require less memory
+        episode.process_observations(lambda o: postprocess_observation(o, self._bit_depth))
+        # Add the episode to the dataset
         self._data.append(episode)
 
     def append_episodes(self, episodes: iter):
@@ -127,6 +132,10 @@ class ExperienceReplay:
             r = rewards.narrow(dim=0, start=0, length=num_samples)
             o_ = observations.narrow(dim=0, start=1, length=num_samples)
             a_ = actions.narrow(dim=0, start=1, length=num_samples)
+
+            # Preprocess the images
+            o = preprocess_observation_tensor(o, self._bit_depth)
+            o_ = preprocess_observation_tensor(o_, self._bit_depth)
 
             episode_data.append((o, a, r, o_, a_))
 

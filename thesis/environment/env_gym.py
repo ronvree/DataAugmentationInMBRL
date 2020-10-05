@@ -207,7 +207,6 @@ class GymEnv(Environment):
             pixels_tuple = self._pixels()
             # Convert them to suitable observations
             observations = [preprocess_observation(o, self._bit_depth) for o in pixels_tuple]
-            # observations = [self._process_image(o) for o in pixels_tuple]
             # Merge the observations in the results
             results = [(o,) + result[1:] for o, result in zip(observations, results)]
 

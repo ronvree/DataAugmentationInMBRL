@@ -36,6 +36,13 @@ def get_main_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--disable_training',
                         action='store_true',
                         help='When set, the training procedure will be skipped')
+    parser.add_argument('--disable_data_collection',
+                        action='store_true',
+                        help='When set, the data collection procedure will be skipped')
+    parser.add_argument('--evaluation_period',
+                        type=int,
+                        default=np.inf,
+                        help='Every `evaluation_period` iterations, the model is evaluated')
     parser.add_argument('--checkpoint_period',
                         type=int,
                         default=10,
@@ -43,9 +50,14 @@ def get_main_argument_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('--planner',
                         type=str,
-                        choices=['debug', 'cem', 'qcem', 'vcem'],
+                        choices=['debug', 'random', 'cem', 'qcem', 'vcem'],
                         default='cem',
-                        help='Select which planning algorithm is used')
+                        help='Select which planning algorithm is used for data collection')
+    parser.add_argument('--eval_planner',
+                        type=str,
+                        choices=['debug', 'random', 'cem', 'qcem', 'vcem'],
+                        default='cem',
+                        help='Select which planning algorithm is used for evaluation')
     parser.add_argument('--plan_env_type',
                         type=str,
                         choices=['true', 'rssm'],
@@ -57,10 +69,6 @@ def get_main_argument_parser() -> argparse.ArgumentParser:
                         default='none',
                         help='Select which (if any) model should be used for value function estimation')
 
-    # parser.add_argument('--num_train_iter',
-    #                     type=int,
-    #                     default=1,  # TODO -- default value -- This is implemented by C in original paper!
-    #                     help='Number of data sequences sampled to train the model in each iteration')
     parser.add_argument('--num_seed_episodes',
                         type=int,
                         default=5,  # Value in PlaNet paper: 5
@@ -148,9 +156,12 @@ def get_placeholder_args() -> argparse.Namespace:
     args.desc = main_parser.get_default('desc')
     args.disable_cuda = True  # main_parser.get_default('disable_cuda')
     args.disable_training = main_parser.get_default('disable_training')
+    args.disable_data_collection = main_parser.get_default('disable_data_collection')
+    args.evaluation_period = main_parser.get_default('evaluation_period')
     args.checkpoint_period = main_parser.get_default('checkpoint_period')
     args.plan_env_type = main_parser.get_default('plan_env_type')
     args.planner = main_parser.get_default('planner')
+    args.eval_planner = main_parser.get_default('eval_planner')
     args.value_model = main_parser.get_default('value_model')
     # args.optimizer = main_parser.get_default('optimizer')
     # args.num_train_iter = main_parser.get_default('num_train_iter')
@@ -242,5 +253,6 @@ def get_placeholder_args() -> argparse.Namespace:
         args.rssm_reward_loss_weight = rssm_trainer_parser.get_default('rssm_reward_loss_weight')
         args.rssm_observation_loss_weight = rssm_trainer_parser.get_default('rssm_observation_loss_weight')
         args.rssm_kl_loss_weight = rssm_trainer_parser.get_default('rssm_kl_loss_weight')
+        args.data_augmentations = rssm_trainer_parser.get_default('data_augmentations')
 
     return args

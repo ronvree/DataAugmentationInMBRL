@@ -1,12 +1,17 @@
 import argparse
 
+import numpy as np
+
 import torch
 from tqdm import tqdm
 
 from thesis.data.episode import Episode
 from thesis.data.experience_replay import ExperienceReplay
 from thesis.environment.env import Environment
-
+from thesis.environment.util import postprocess_observation
+from thesis.planner.planner import Planner
+from thesis.rssm.rssm import RSSM
+from thesis.util.logging import Log
 
 """
     Helper functions for data collection
@@ -133,3 +138,111 @@ def init_data(dataset: ExperienceReplay,
             iters.set_postfix_str(f'completed {(i + 1) * bs}/{num_iters * bs}')
 
     return dataset, info
+
+
+def collect_data(env: Environment,
+                 planner: Planner,
+                 env_planning: Environment,
+                 args: argparse.Namespace,
+                 log: Log = None,
+                 fixed_start: tuple = None,
+                 log_prefix: str = 'data_collection',
+                 progress_desc: str = 'Collecting episode',
+                 ) -> tuple:
+    """
+    Execute an episode (batch) in the environment. Actions are selected by the specified planner, which plans in a
+    (possibly learned) model of the environment. The obtained data is returned in Episode objects
+    :param env: The environment in which data should be collected
+    :param planner: The planner that selects actions to execute in the environment
+    :param env_planning: The environment model that is used by the planner to select actions
+    :param args: argparse.Namespace object containing hyperparameters
+    :param log: (optional) a Log object for logging info about the data collection
+    :param fixed_start: (optional) can be specified to set the environment model to some initial state.
+                        two-tuple containing:
+                - a torch.Tensor containing the initial observation
+                    shape: (batch_size,)+ observation_shape
+                - an object containing the initial state to which the environment should be set
+    :param log_prefix: (optional) string specifying the prefix of the names of the log files
+    :param progress_desc: (optional) string specifying the description in the progress bar
+    :return: a two-tuple consisting of:
+                - a list of Episode objects containing the data that was collected. The number of Episode objects
+                  corresponds to the planning batch size
+    """
+
+    # Log the predicted and true rewards during data collection
+    reward_log = f'{log_prefix}_rewards'
+    if log is not None:
+        log.create_log(reward_log, 't', 'true reward', 'predicted reward', 'difference')
+    # Log the predicted and true observations during data collection
+    observation_log = f'{log_prefix}_observations'
+    if log is not None:
+        log.create_image_folder(observation_log)
+
+    # Build a progress bar for data collection (if episode length is known)
+    progress = tqdm(desc=progress_desc,
+                    total=args.max_episode_length) \
+        if args.max_episode_length != np.inf else None
+
+    with torch.no_grad():
+        # Reset the environment, set to initial state
+        observation, env_terminated, info = env.reset()
+        if fixed_start is not None:
+            init_observation, init_state = fixed_start
+            observation = init_observation
+            env.set_state(init_state)
+
+        # Reset the planning environment
+        env_planning.reset()
+        # If complete observability is assumed, make sure the planning env shares state
+        if type(env) == type(env_planning):
+            env_planning.set_state(env.get_state())
+            env_planning.set_seed(env.get_seed())  # TODO -- seed properly
+
+        # Execute an episode (batch) in the environment
+        episode_data = [observation]
+        while not all(env_terminated):
+            # Plan action a_t in an environment model
+            action, plan_info = planner.plan(env_planning)
+            # Obtain o_{t+1}, r_{t+1}, f_{t+1} by executing a_t in the environment
+            observation, reward, env_terminated, info = env.step(action)
+
+            # Perform the action in the planning environment as well
+            if isinstance(env_planning, RSSM):
+                observation_prediction, reward_prediction, _, _ = env_planning.step(action,
+                                                                                    true_observation=observation)
+                observation_prediction.cpu()
+                reward_prediction.cpu()
+            else:
+                observation_prediction, reward_prediction, _, _ = env_planning.step(action)
+
+            # Log the obtained and predicted reward
+            # TODO -- support logging for environment batches
+            r_true, r_pred = reward[0].item(), reward_prediction[0].item()
+            if log is not None:
+                log.log_values(reward_log, env.t, r_true, r_pred, abs(r_true - r_pred))
+            # Log the obtained and predicted observation
+            o_true = postprocess_observation(observation, args.bit_depth, dtype=torch.float32)[0]
+            o_pred = postprocess_observation(observation_prediction, args.bit_depth, dtype=torch.float32)[0]
+            if log is not None:
+                log.log_observations(observation_log, f'observations_t_{env.t}', o_true, o_pred)
+
+            # Extend the episode using the obtained information
+            episode_data.extend([action, reward, env_terminated, observation])
+
+            # Update progress bar
+            if progress is not None:
+                progress.update(1)
+                progress.set_postfix_str(
+                    f't: {env.t}, '
+                    f'r_true: {reward[0].item():.3f}, '
+                    f'r_pred: {reward_prediction[0].item():.3f}, ',
+                    refresh=True
+                )
+
+        if progress is not None:
+            progress.close()
+            print('\n')
+
+    # Return the collected data
+    return data_to_episodes(episode_data), {}
+

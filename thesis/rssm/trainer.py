@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, BatchSampler, RandomSampler
 
+from thesis.data.augmentation.data_augmentation import from_keyword
 from thesis.data.experience_replay_episodes import ExperienceReplay
 from thesis.rssm.rssm import RSSM
 from thesis.util.func import batch_tensors
@@ -16,7 +17,6 @@ from thesis.util.logging import Log
 
 
 class Trainer:
-
     """
         Object for training a Recurrent State Space Model
     """
@@ -42,8 +42,7 @@ class Trainer:
         self._c_o_loss = args.rssm_observation_loss_weight
         self._c_kl_loss = args.rssm_kl_loss_weight
 
-        # Keep internal counter for num train iters done
-        self._iter_count = 0
+        self._data_augmentations = args.data_augmentations or []
 
     @staticmethod
     def get_argument_parser() -> argparse.ArgumentParser:
@@ -55,7 +54,8 @@ class Trainer:
 
         parser.add_argument('--num_train_sequences',
                             type=int,
-                            default=50,  # TODO -- value in original paper -- i think it was 200 but they use smaller seq lengths for training
+                            default=50,
+                            # TODO -- value in original paper -- i think it was 200 but they use smaller seq lengths for training
                             help='Number of episode batches sampled during the training phase of the RSSM. Refered to'
                                  'as C in the original paper')
 
@@ -94,12 +94,19 @@ class Trainer:
                             default=1,  # Value used in original paper: 1
                             help='Weighing factor of the KL divergence loss when training the RSSM')
 
+        parser.add_argument('--data_augmentations',
+                            nargs='+',
+                            help='Specify keywords for data augmentations that should be used when training the encoder'
+                            )
+
         return parser
 
     def train(self,
               model: RSSM,
               batch_size: int,
               log: Log = None,
+              log_prefix: str = 'log_train_rssm',
+              progress_desc: str = 'Train RSSM',
               device=torch.device('cpu')
               ) -> tuple:
         """
@@ -107,17 +114,18 @@ class Trainer:
         :param model: the RSSM model
         :param batch_size: batch size to use when training
         :param log: a Log object for logging info about the training procedure
+        :param log_prefix: Prefix string for any created log files
+        :param progress_desc: Description string of the progress bar
         :param device: the device (CPU/GPU) on which the training procedure should be run
         :return: a two-tuple consisting of:
                     - a reference to the model that was trained
                     - a dict containing info about the training procedure
         """
 
-        # Increment iteration counter
-        self._iter_count += 1
         # Create a log for storing info about this train procedure
-        train_log = f'iter_{self._iter_count}_losses'
-        log.create_log(train_log, 'batch', 'total loss', 'reward loss', 'observation loss', 'KL loss')
+        train_log = f'{log_prefix}_losses'
+        if log is not None:
+            log.create_log(train_log, 'batch', 'total loss', 'reward loss', 'observation loss', 'KL loss')
         # Create a dict for storing info about this train procedure
         info = {}
 
@@ -153,7 +161,7 @@ class Trainer:
         # Build progress bar
         progress = tqdm(enumerate(dataloader),
                         total=len(dataloader),
-                        desc='Train RSSM')
+                        desc=progress_desc)
 
         # Do optimization loops
         for i_batch, (o, a, r, o_, a_) in progress:
@@ -177,13 +185,14 @@ class Trainer:
             optimizer.step()
 
             # Write to log
-            log.log_values(train_log,
-                           i_batch,
-                           batch_info['loss'],
-                           batch_info['reward_loss'],
-                           batch_info['observation_loss'],
-                           batch_info['belief_loss'],
-                           )
+            if log is not None:
+                log.log_values(train_log,
+                               i_batch,
+                               batch_info['loss'],
+                               batch_info['reward_loss'],
+                               batch_info['observation_loss'],
+                               batch_info['belief_loss'],
+                               )
 
             # Update progress bar
             progress.set_postfix_str(
@@ -237,11 +246,15 @@ class Trainer:
         # Switch the episode and batch dimensions
         episode = tuple([Trainer._switch_dims(xs) for xs in episode])
 
-        # Simulate the trajectory in the model
-        for t, (o, a, r, o_, a_) in enumerate(zip(*episode)):
+        # Apply data augmentation to the observation tensor
+        o_augmented = episode[3]  # Shape: (T, batch_size,) + observation_shape
+        for aug in self._data_augmentations:
+            o_augmented = from_keyword(aug)(o_augmented)  # Shape (T, batch_size,) + augmented_observation_shape
 
+        # Simulate the trajectory in the model
+        for t, (o, a, r, o_, a_, o_aug) in enumerate(zip(*episode, o_augmented)):
             # Get prediction (distributions) from the environment model
-            predicted_o_, predicted_r, predicted_s,  _, _ = model.simulate_step(a)
+            predicted_o_, predicted_r, predicted_s, _, _ = model.simulate_step(a)
 
             # Only observation sample is required, omit dist params
             predicted_o_, _, _ = predicted_o_
@@ -261,7 +274,7 @@ class Trainer:
             # Get the prior and posterior belief distributions
             prior = Normal(state_prior_mean, state_prior_std)
             # Get an estimate of the posterior belief using the encoder
-            _, state_posterior_mean, state_posterior_std = model.posterior_state_belief(o_)
+            _, state_posterior_mean, state_posterior_std = model.posterior_state_belief(o_aug)
             posterior = Normal(state_posterior_mean, state_posterior_std)
 
             # Allowed deviation in KL divergence

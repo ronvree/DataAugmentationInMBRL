@@ -19,7 +19,8 @@ CONTROL_SUITE_ENVS = [
     'finger-spin',
     'cheetah-run',
     'ball_in_cup-catch',
-    'walker-walk'
+    'walker-walk',
+    'acrobot-swingup'
 ]
 
 
@@ -36,7 +37,7 @@ class ControlSuiteEnvironment(Environment):
     # TODO -- image observations
 
     def __init__(self, args: argparse.Namespace):
-        assert args.batch_size > 0
+        assert args.env_batch_size > 0
         assert args.environment_name in CONTROL_SUITE_ENVS
         assert args.max_episode_length > 0
 
@@ -115,7 +116,7 @@ class ControlSuiteEnvironment(Environment):
                        for image, (_, t, info) in zip(pixels_tuple, results)]
 
             # Add raw pixels to all info dicts
-            for pixels, info in zip(pixels_tuple, results[2]):
+            for pixels, (_, _, info) in zip(pixels_tuple, results):
                 info['pixels'] = pixels
 
         # Unzip all tuples into 3 tuples containing the observations, flags and info dicts, respectively
@@ -149,10 +150,11 @@ class ControlSuiteEnvironment(Environment):
                 env.physics.data.ctrl[:] = ctrl
 
     def get_seed(self) -> tuple:
-        raise NotImplementedError  # TODO
+        return tuple(env.task.random.seed() for env in self._envs)
 
     def set_seed(self, seed: tuple):
-        raise NotImplementedError  # TODO
+        for s, env in zip(seed, self._envs):
+            env.task.random.seed(s)
 
     def clone(self) -> "Environment":
         return deepcopy(self)
@@ -180,6 +182,8 @@ class ControlSuiteEnvironment(Environment):
         action = action.detach().numpy()
         # Execute the actions in the environments
         results = [env.step(a) for a, env in zip(action, self._envs)]
+        # Process the control suite results
+        results = [self._process_result(result) for result in results]
 
         # Don't return an observation if no_observation flag is set
         if no_observation:
@@ -195,19 +199,16 @@ class ControlSuiteEnvironment(Environment):
             return tuple(results)
         # If required, set observation to image observations
         elif not self._state_obs:
-
-            pass  # TODO
-
             # Get raw pixels from all environments
             pixels_tuple = self._pixels()
+            # Convert them to suitable observations
+            observations = [preprocess_observation(o, self._bit_depth) for o in pixels_tuple]
+            # Merge the observations in the results
+            results = [(o,) + result[1:] for o, result in zip(observations, results)]
 
-
-
-
-
-
-        # Process the control suite results
-        results = [self._process_result(result) for result in results]
+            # Add all raw pixel observations to the info dicts
+            for result, pixels in zip(results, pixels_tuple):
+                result[3]['pixels'] = pixels
 
         # Unzip all tuples into 4 tuples containing the observations, rewards, flags and info dicts, respectively
         results = [*zip(*results)]
@@ -222,10 +223,6 @@ class ControlSuiteEnvironment(Environment):
         if self._t >= self._max_t:
             results[2] |= True  # Set all flags to true if max episode length is reached
 
-        # Add all raw pixel observations to the info dicts
-        for info, pixels in zip(results[3], pixels_tuple):
-            info['pixels'] = pixels
-
         # Return all results as a tuple
         return tuple(results)
 
@@ -237,7 +234,7 @@ class ControlSuiteEnvironment(Environment):
         for env in self._envs:
             spec = env.action_spec()
             action = np.random.uniform(spec.minimum, spec.maximum, spec.shape)
-            actions += [torch.from_numpy(action)]
+            actions += [torch.from_numpy(action).to(torch.float32)]
         actions = batch_tensors(*actions)
         return actions
 
@@ -255,7 +252,7 @@ class ControlSuiteEnvironment(Environment):
         observation = torch.FloatTensor(observation)
 
         reward = result.reward
-        reward = torch.FloatTensor([result.reward]) if reward is not None else torch.zeros(1)
+        reward = torch.tensor(reward) if reward is not None else torch.tensor(0)
 
         terminal = result.last()
         terminal = torch.tensor(terminal)
@@ -268,10 +265,11 @@ if __name__ == '__main__':
     from dm_control import viewer
 
     _args = argparse.Namespace()
-    _args.env_name = CONTROL_SUITE_ENVS[0]
-    _args.batch_size = 3
+    _args.environment_name = CONTROL_SUITE_ENVS[0]
+    _args.env_batch_size = 3
     _args.max_episode_length = 1000
-    _args.state_observations = True
+    _args.state_observations = False
+    _args.bit_depth = 5
 
     _env = ControlSuiteEnvironment(_args)
 

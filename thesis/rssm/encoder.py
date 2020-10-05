@@ -29,10 +29,11 @@ class BeliefEncoder(nn.Module):
 
         self.min_std = args.state_model_min_std
 
-        self.conv1 = nn.Conv2d(3, 32, 4, stride=2)
-        self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
-        self.conv3 = nn.Conv2d(64, 128, 4, stride=2)
-        self.conv4 = nn.Conv2d(128, 256, 4, stride=2)
+        # Conv layers affect feature map size by  size = (size - (kernel_size - 1) + 1) // stride
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=5, stride=2)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=4, stride=2)
+        self.conv4 = nn.Conv2d(128, 256, kernel_size=4, stride=2)
 
         self.lin_os = nn.Linear(1024, encoding_size) if encoding_size != 1024 else nn.Identity()
         self.lin_embed = nn.Linear(hidden_size + encoding_size, encoder_size)
@@ -42,7 +43,7 @@ class BeliefEncoder(nn.Module):
 
     def forward(self, hs: torch.Tensor, os: torch.Tensor) -> tuple:
         """
-
+        Perform a forward pass through the encoder
         :param hs: a tensor containing the hidden state of the transition model of the RSSM
             shape: (batch_size, deterministic_state_size)
         :param os: an observation tensor based on which the state belief distribution should be updated

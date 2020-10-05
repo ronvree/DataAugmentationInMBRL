@@ -18,7 +18,6 @@ class CEM(Planner):
         assert args.planning_horizon > 0
         assert args.num_plan_iter > 0
         assert args.num_plan_candidates > 1
-        assert args.num_plan_top_candidates > 1
         assert args.num_plan_candidates >= args.num_plan_top_candidates
         assert args.plan_batch_size > 0
 
@@ -261,8 +260,10 @@ class QCEM(CEM):
             actions = [action.squeeze(1) for action in candidate.split(1, dim=1)]
             # Execute all but the last action in the environment
             for tau, action in enumerate(actions[:-1]):
+                # An observation is only required at the last iteration. Not rendering saves a lot of time
+                not_last_iter = bool(len(actions) - tau - 2)
                 # Execute the action
-                observation, reward, flag, info = environment.step(action, no_observation=bool(len(actions) - tau - 2))  # TODO -- only get observation at last iter -- neater
+                observation, reward, flag, info = environment.step(action, no_observation=not_last_iter)
 
                 if observation is not None:  # TODO -- HANDLE THIS IN THE ENVIRONMENT
                     observation = observation.to(device)
@@ -325,8 +326,10 @@ class VCEM(CEM):
             actions = [action.squeeze(1) for action in candidate.split(1, dim=1)]
             # Execute all but the last action in the environment
             for tau, action in enumerate(actions):
+                # An observation is only required at the last iteration. Not rendering saves a lot of time
+                not_last_iter = bool(len(actions) - tau - 1)
                 # Execute the action
-                observation, reward, flag, info = environment.step(action, no_observation=bool(len(actions) - tau - 1))  # TODO -- only get observation at last iter -- neater
+                observation, reward, flag, info = environment.step(action, no_observation=not_last_iter)
 
                 if observation is not None:  # TODO -- HANDLE THIS IN THE ENVIRONMENT
                     observation = observation.to(device)

@@ -191,3 +191,36 @@ def init_planner_from_args(args: argparse.Namespace, ctx: dict) -> Planner:
     raise Exception('Planner name not recognized!')
 
 
+def init_eval_planner_from_args(args: argparse.Namespace, ctx: dict) -> Planner:
+    """
+    Build a planner from parsed arguments
+    :param args: an argparse.Namespace object containing parsed arguments
+    :param ctx: dict containing the scope of the main program
+                (might be required when initializing the objects)
+    :return: a Planner built from the parsed arguments
+    """
+    name = args.eval_planner
+
+    # Eval planner hyperparameters are hardcoded:
+    args_ = argparse.Namespace()
+    args_.planning_horizon = 12
+    args_.num_plan_iter = 10
+    args_.num_plan_candidates = 100
+    args_.num_plan_top_candidates = 10
+    args_.plan_batch_size = 1
+
+    if name == 'cem':
+        return CEM(args_)
+    if name == 'qcem':
+        assert args.value_model in ACTION_VALUE_MODEL_KEYWORDS
+        model = ctx['model']
+        return QCEM(model, args_)
+    if name == 'vcem':
+        assert args.value_model in VALUE_MODEL_KEYWORDS
+        model = ctx['model']
+        return VCEM(model, args_)
+    if name in ['debug', 'random']:
+        return RandomPlanner()
+    raise Exception('Planner name not recognized!')
+
+

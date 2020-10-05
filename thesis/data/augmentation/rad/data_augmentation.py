@@ -1,8 +1,8 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-from thesis.rad.transform_layer import ColorJitterLayer
+
+from thesis.data.augmentation.rad.transform_layer import ColorJitterLayer
 
 """
     THIS CODE WAS COPIED FROM https://github.com/MishaLaskin/rad
@@ -251,6 +251,8 @@ def no_aug(x):
 
 
 if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+
     import time
     from tabulate import tabulate
 
@@ -263,7 +265,6 @@ if __name__ == '__main__':
         s = now() - t
         tot = round((1e5 * s) / 60, 1)
         return round(s, 3), tot
-
 
     x = np.load('data_sample.npy', allow_pickle=True)
     x = np.concatenate([x, x, x], 1)
