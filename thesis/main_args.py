@@ -47,6 +47,10 @@ def get_main_argument_parser() -> argparse.ArgumentParser:
                         type=int,
                         default=10,
                         help='Every `checkpoint_period` iterations a checkpoint of the run is saved to disk')
+    parser.add_argument('--num_main_loops',
+                        type=int,
+                        default=np.inf,
+                        help='The number of main loops that should be executed')
 
     parser.add_argument('--planner',
                         type=str,
@@ -159,6 +163,7 @@ def get_placeholder_args() -> argparse.Namespace:
     args.disable_data_collection = main_parser.get_default('disable_data_collection')
     args.evaluation_period = main_parser.get_default('evaluation_period')
     args.checkpoint_period = main_parser.get_default('checkpoint_period')
+    args.num_main_loops = main_parser.get_default('num_main_loops')
     args.plan_env_type = main_parser.get_default('plan_env_type')
     args.planner = main_parser.get_default('planner')
     args.eval_planner = main_parser.get_default('eval_planner')

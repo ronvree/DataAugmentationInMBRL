@@ -15,6 +15,7 @@ ARGS = argparse.Namespace(
     disable_data_collection=True,
     evaluation_period=1,
     checkpoint_period=np.inf,
+    num_main_loops=200,
     planner='cem',
     eval_planner='cem',
     plan_env_type='true',
@@ -48,6 +49,6 @@ if __name__ == '__main__':
     from thesis.main import run
 
     _args = copy.deepcopy(ARGS)
-    _args.environment_name = 'HalfCheetah-v2'
+    _args.environment_name = 'BipedalWalker-v3'
 
     run(_args)

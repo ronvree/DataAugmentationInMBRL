@@ -34,8 +34,6 @@ class ControlSuiteEnvironment(Environment):
 
     # TODO -- docs
 
-    # TODO -- image observations
-
     def __init__(self, args: argparse.Namespace):
         assert args.env_batch_size > 0
         assert args.environment_name in CONTROL_SUITE_ENVS
@@ -46,9 +44,15 @@ class ControlSuiteEnvironment(Environment):
 
         domain, task = args.environment_name.split('-')
 
-        self._envs = [suite.load(domain_name=domain, task_name=task)
+        self._envs = [suite.load(domain_name=domain,
+                                 task_name=task,
+                                 task_kwargs={'time_limit': np.inf}
+                                 )
                       for _ in range(args.env_batch_size)]
-        # self._envs = [pixels.Wrapper(env) for env in self._envs]  # TODO
+
+        self._envs = [pixels.Wrapper(env,
+                                     render_kwargs={'camera_id': 0}
+                                     ) for env in self._envs]
 
         # Time step counter
         self._t = 0
@@ -239,7 +243,7 @@ class ControlSuiteEnvironment(Environment):
         return actions
 
     def _pixels(self) -> tuple:
-        return tuple([env.physics.render() for env in self._envs])
+        return tuple([env.physics.render(camera_id=0) for env in self._envs])
 
     def _process_result(self, result) -> tuple:
         """

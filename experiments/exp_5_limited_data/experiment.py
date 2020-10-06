@@ -3,15 +3,16 @@ import argparse
 from thesis.environment.env_gym import GYM_ENVS
 from thesis.environment.env_suite import CONTROL_SUITE_ENVS
 
+
 DESCRIPTION = "The Cross-Entropy Method is used to solve the environments in a learned environment model. No data" \
               " augmentation is used. The data used for training the environment model obtained under a uniformly" \
-              " random policy."
+              " random policy. The amount of available data is restricted."
 
 ARGS = argparse.Namespace(
     desc=DESCRIPTION,
     disable_cuda=False,
     disable_training=False,
-    disable_data_collection=False,
+    disable_data_collection=True,
     evaluation_period=50,
     checkpoint_period=10,
     num_main_loops=200,
@@ -20,11 +21,11 @@ ARGS = argparse.Namespace(
     plan_env_type='rssm',
     value_model='none',
 
-    num_seed_episodes=200,
+    num_seed_episodes=10,
     num_data_episodes=1,
     train_batch_size=32,
 
-    log_directory='../../logs/log_experiment_2_temp',
+    log_directory='../../logs/log_experiment_5_temp',
     print_log=True,
 
     environment_name=GYM_ENVS[0],
@@ -56,14 +57,34 @@ ARGS = argparse.Namespace(
 
 )
 
-
 if __name__ == '__main__':
     import copy
 
     from thesis.main import run
 
     _args = copy.deepcopy(ARGS)
-    _args.environment_name = 'cheetah-run'
+    _args.environment_name = 'Pendulum-v0'
     _args.disable_cuda = True
 
     run(_args)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

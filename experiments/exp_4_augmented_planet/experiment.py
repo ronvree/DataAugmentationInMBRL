@@ -20,6 +20,7 @@ def get_args() -> argparse.Namespace:
     args.disable_data_collection = False
     args.evaluation_period = 50
     args.checkpoint_period = 10
+    args.num_main_loops=200,
     args.planner = 'random'
     args.eval_planner = 'cem'
     args.plan_env_type = 'rssm'

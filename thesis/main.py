@@ -192,8 +192,8 @@ def run(args: argparse.Namespace):
 
     # Start main loop
     log.log_message('Starting main loop')
-    converged = False
-    while not converged:
+    required_to_stop = False
+    while not required_to_stop:
 
         '''
         
@@ -274,7 +274,7 @@ def run(args: argparse.Namespace):
             )
 
         # Check whether the algorithm should terminate
-        converged = False  # TODO -- stop criterion
+        required_to_stop = iter_count >= args.num_main_loops
         # Raise the iteration counter
         iter_count += 1
 

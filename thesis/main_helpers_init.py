@@ -72,7 +72,11 @@ def init_planner_env_from_args(args: argparse.Namespace, ctx: dict) -> Environme
 
     if key == 'true':
         environment = ctx['env']
-        return environment.clone()
+        plan_env = init_env_from_args(args, ctx)
+        plan_env.set_state(environment.get_state())
+        plan_env.set_seed(environment.get_seed())
+        return plan_env
+        # return environment.clone()
     if key == 'rssm':
         action_shape = ctx['env'].action_shape
         device = ctx['device']

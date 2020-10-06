@@ -27,7 +27,7 @@ GYM_ENVS = [
     'InvertedPendulum-v2',
     'Reacher-v2',
     'Swimmer-v2',
-    'Walker2d-v2'
+    'Walker2d-v2',
 ]
 
 
