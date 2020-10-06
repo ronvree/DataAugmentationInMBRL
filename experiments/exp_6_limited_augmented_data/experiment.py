@@ -62,6 +62,16 @@ if __name__ == '__main__':
 
     from thesis.main import run
 
+    import gym
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from IPython import display as ipythondisplay
+
+    from pyvirtualdisplay import Display
+
+    _display = Display(visible=0, size=(400, 300))
+    _display.start()
+
     for _num_samples in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
 
         _args = copy.deepcopy(ARGS)
