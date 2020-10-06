@@ -68,7 +68,7 @@ if __name__ == '__main__':
         _args.environment_name = 'Pendulum-v0'
         _args.num_seed_episodes = _num_samples
 
-        _args.log_directroy = f'./log_exp5_run1_size{_num_samples}'
+        _args.log_directory = f'./log_exp5_run1_size{_num_samples}'
 
         run(_args)
 
