@@ -62,9 +62,13 @@ if __name__ == '__main__':
 
     from thesis.main import run
 
-    _args = copy.deepcopy(ARGS)
-    _args.environment_name = 'Pendulum-v0'
-    _args.disable_cuda = True
+    for _num_samples in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
 
-    run(_args)
+        _args = copy.deepcopy(ARGS)
+        _args.environment_name = 'Pendulum-v0'
+        _args.num_seed_episodes = _num_samples
+
+        _args.log_directroy = f'./log_exp5_run1_size{_num_samples}'
+
+        run(_args)
 
