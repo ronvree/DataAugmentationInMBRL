@@ -70,7 +70,7 @@ def maybe_vertical_flip_and_negate(imgs: torch.Tensor,
                                    actions: torch.Tensor,
                                    imgs_: torch.Tensor,
                                    actions_: torch.Tensor) -> tuple:
-    if random.random() > 0.5:
+    if random.random() >= 0.5:
         imgs = vertical_flip(imgs)
         actions = negate(actions)
         imgs_ = vertical_flip(imgs_)
