@@ -116,7 +116,7 @@ class GymEnv(Environment):
         # observations = [torch.from_numpy(o).to(dtype=torch.float) for o in observations]
         # Concatenate all tensors in a newly created batch dimension
         # Results in a single observation tensor of shape: (batch_size,) + observation_shape
-        observations = batch_tensors(*observations)
+        observations = batch_tensors(*observations)  # TODO -- cast states to tensors!
         # Return the results
         return observations, flags, infos
 
@@ -282,10 +282,11 @@ class GymEnv(Environment):
 if __name__ == '__main__':
 
     _args = argparse.Namespace()
-    _args.env_name = GYM_ENVS[0]
+    _args.environment_name = GYM_ENVS[0]
     _args.env_batch_size = 3
     _args.max_episode_length = 1000
-    _args.state_observations = True
+    _args.state_observations = False
+    _args.bit_depth = 5
 
     _env = GymEnv(_args)
 

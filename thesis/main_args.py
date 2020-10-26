@@ -24,6 +24,10 @@ def get_main_argument_parser() -> argparse.ArgumentParser:
                         type=str,
                         required=False,
                         help='Load a checkpoint from the specified file')
+    parser.add_argument('--state_checkpoint',
+                        type=str,
+                        required=False,
+                        help='Load a checkpoint from the specified file, but only set the initial environment state')
 
     parser.add_argument('--desc',
                         type=str,
@@ -259,5 +263,6 @@ def get_placeholder_args() -> argparse.Namespace:
         args.rssm_observation_loss_weight = rssm_trainer_parser.get_default('rssm_observation_loss_weight')
         args.rssm_kl_loss_weight = rssm_trainer_parser.get_default('rssm_kl_loss_weight')
         args.data_augmentations = rssm_trainer_parser.get_default('data_augmentations')
+        args.state_action_augmentations = rssm_trainer_parser.get_default('state_action_augmentations')
 
     return args

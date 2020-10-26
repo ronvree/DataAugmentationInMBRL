@@ -49,6 +49,5 @@ if __name__ == '__main__':
     from thesis.main import run
 
     _args = copy.deepcopy(ARGS)
-    _args.environment_name = 'BipedalWalker-v3'
 
     run(_args)

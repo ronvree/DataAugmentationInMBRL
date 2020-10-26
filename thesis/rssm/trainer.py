@@ -43,6 +43,7 @@ class Trainer:
         self._c_kl_loss = args.rssm_kl_loss_weight
 
         self._data_augmentations = args.data_augmentations or []
+        self._state_action_augmentations = args.state_action_augmentations or []
 
     @staticmethod
     def get_argument_parser() -> argparse.ArgumentParser:
@@ -98,6 +99,10 @@ class Trainer:
                             nargs='+',
                             help='Specify keywords for data augmentations that should be used when training the encoder'
                             )
+
+        parser.add_argument('--state_action_augmentations',
+                            nargs='+',
+                            help='Specify keywords for data augmentations applied to the state action pairs')
 
         return parser
 
@@ -245,6 +250,10 @@ class Trainer:
 
         # Switch the episode and batch dimensions
         episode = tuple([Trainer._switch_dims(xs) for xs in episode])
+
+        # Apply state-action augmentations
+        for aug in self._state_action_augmentations:
+            episode[0], episode[1], episode[3], episode[4] = from_keyword(aug)(episode[0], episode[1], episode[3], episode[4])
 
         # Apply data augmentation to the observation tensor
         o_augmented = episode[3]  # Shape: (T, batch_size,) + observation_shape

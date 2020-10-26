@@ -81,6 +81,21 @@ def run(args: argparse.Namespace):
 
         # Build the environment used for data collection
         env = init_env_from_args(args, ctx=locals())
+
+        if not hasattr(args, 'state_checkpoint'):
+            # The PlaNet model assumes some known initial state
+            init_observation, _, _ = env.reset()
+            init_state = env.get_state()
+        else:
+            # Get the checkpoint
+            path_to_checkpoint = args.state_checkpoint
+            checkpoint = load_checkpoint(path_to_checkpoint)
+
+            init_observation = checkpoint['init_observation']
+            init_state = checkpoint['init_state']
+
+            env.set_state(init_state)
+
         # Build an additional environment for planning
         env_planning = init_planner_env_from_args(args, ctx=locals())
 
@@ -100,10 +115,6 @@ def run(args: argparse.Namespace):
         planner = init_planner_from_args(args, ctx=locals())
         # Initialize the planner used for evaluation
         planner_eval = init_eval_planner_from_args(args, ctx=locals())
-
-        # The PlaNet model assumes some known initial state
-        init_observation, _, _ = env.reset()
-        init_state = env.get_state()
 
         # Keep iteration counter
         iter_count = 1
