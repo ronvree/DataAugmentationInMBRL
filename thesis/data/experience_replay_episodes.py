@@ -12,7 +12,7 @@ from thesis.util.func import batch_tensors
 from thesis.environment.util import preprocess_observation_tensor, postprocess_observation
 
 
-class ExperienceReplay:
+class ExperienceReplay(Dataset):
 
     """
         Implementation of a (possibly infinite) buffer of data collected from experience
@@ -71,6 +71,32 @@ class ExperienceReplay:
     @property
     def num_episodes(self) -> int:
         return len(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+    def __getitem__(self, index):
+        episode = self._data[index]
+
+        # Get all episode data in single tensors
+        observations = episode.get_observations_as_tensor()
+        actions = episode.get_actions_as_tensor()
+        rewards = episode.get_rewards_as_tensor()
+
+        num_samples = rewards.size(0) - 1
+
+        # Slice the corresponding tensors
+        o = observations.narrow(dim=0, start=0, length=num_samples)
+        a = actions.narrow(dim=0, start=0, length=num_samples)
+        r = rewards.narrow(dim=0, start=0, length=num_samples)
+        o_ = observations.narrow(dim=0, start=1, length=num_samples)
+        a_ = actions.narrow(dim=0, start=1, length=num_samples)
+
+        # Preprocess the images
+        o = preprocess_observation_tensor(o, self._bit_depth)
+        o_ = preprocess_observation_tensor(o_, self._bit_depth)
+
+        return tuple(batch_tensors(*ts) for ts in (o, a, r, o_, a_))
 
     def append_episode(self, episode: Episode):
         """

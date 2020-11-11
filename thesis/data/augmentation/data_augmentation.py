@@ -68,6 +68,7 @@ def negate(t: torch.Tensor) -> torch.Tensor:
 
 def maybe_vertical_flip_and_negate(imgs: torch.Tensor,
                                    actions: torch.Tensor,
+                                   rewards: torch.Tensor,
                                    imgs_: torch.Tensor,
                                    actions_: torch.Tensor) -> tuple:
     if random.random() >= 0.5:
@@ -76,9 +77,9 @@ def maybe_vertical_flip_and_negate(imgs: torch.Tensor,
         imgs_ = vertical_flip(imgs_)
         actions_ = negate(actions_)
 
-        return imgs, actions, imgs_, actions_
+        return imgs, actions, rewards, imgs_, actions_
     else:
-        return imgs, actions, imgs_, actions_
+        return imgs, actions, rewards, imgs_, actions_
 
 
 """

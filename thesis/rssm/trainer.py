@@ -135,7 +135,8 @@ class Trainer:
         info = {}
 
         # Convert the dataset to a torch.utils.data.TensorDataSet
-        dataset = self._dataset.as_episode_dataset()
+        # dataset = self._dataset.as_episode_dataset()
+        dataset = self._dataset
 
         # Define a sampling strategy for the dataloader
         sampler = BatchSampler(
@@ -253,7 +254,7 @@ class Trainer:
 
         # Apply state-action augmentations
         for aug in self._state_action_augmentations:
-            episode[0], episode[1], episode[3], episode[4] = from_keyword(aug)(episode[0], episode[1], episode[3], episode[4])
+            episode = from_keyword(aug)(*episode)
 
         # Apply data augmentation to the observation tensor
         o_augmented = episode[3]  # Shape: (T, batch_size,) + observation_shape

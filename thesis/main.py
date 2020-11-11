@@ -306,8 +306,8 @@ if __name__ == '__main__':
 
     # _args.experience_size = 10000
 
-    _args.environment_name = CONTROL_SUITE_ENVS[7]
-    # _args.environment_name = GYM_ENVS[0]
+    # _args.environment_name = CONTROL_SUITE_ENVS[7]
+    _args.environment_name = GYM_ENVS[0]
 
     _args.plan_env_type = 'rssm'
     # _args.plan_env_type = 'true'
@@ -337,6 +337,8 @@ if __name__ == '__main__':
 
     # _args.data_augmentations = []
     # _args.data_augmentations = ['random_translate']
+
+    _args.state_action_augmentations = []
 
     # _args.checkpoint = '../logs/log_test/iter_1_checkpoint.pth'
 
