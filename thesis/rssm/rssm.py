@@ -84,7 +84,7 @@ class RSSM(Environment, nn.Module):
                             help='Minimal standard deviation of the stochastic state model')
         parser.add_argument('--encoding_size',
                             type=int,
-                            default=1024,
+                            default=1024,  # 1024 in original paper
                             help='The size of the encoding of the history')
         parser.add_argument('--rssm_sample_mean',
                             action='store_true',

@@ -6,9 +6,10 @@ import torch
 from thesis.environment.env import Environment
 from thesis.environment.env_gym import GYM_ENVS, GymEnv
 from thesis.environment.env_suite import CONTROL_SUITE_ENVS, ControlSuiteEnvironment
-from thesis.planner.cem import CEM, QCEM, VCEM
+from thesis.planner.cem import CEM, QCEM, VCEM, ECEM
 from thesis.planner.planner import Planner
 from thesis.planner.util import RandomPlanner
+from thesis.rssm.extended.rssm_extended import ERSSM
 from thesis.rssm.rssm import RSSM
 from thesis.value_model.qmodel import QModel
 from thesis.value_model.util import DummyModel
@@ -81,6 +82,10 @@ def init_planner_env_from_args(args: argparse.Namespace, ctx: dict) -> Environme
         action_shape = ctx['env'].action_shape
         device = ctx['device']
         return RSSM(action_shape, args, device=device)
+    if key == 'erssm':
+        action_shape = ctx['env'].action_shape
+        device = ctx['device']
+        return ERSSM(action_shape, args, device=device)
     raise Exception('Unknown plan environment type!')
 
 
@@ -97,6 +102,9 @@ def init_planner_env_trainer_from_args(args: argparse.Namespace, ctx: dict):
     if key == 'true':
         return None
     if key == 'rssm':
+        dataset = ctx['dataset']
+        return RSSMTrainer(dataset, args)
+    if key == 'erssm':
         dataset = ctx['dataset']
         return RSSMTrainer(dataset, args)
 
@@ -182,6 +190,8 @@ def init_planner_from_args(args: argparse.Namespace, ctx: dict) -> Planner:
 
     if name == 'cem':
         return CEM(args)
+    if name == 'ecem':
+        return ECEM(args)
     if name == 'qcem':
         assert args.value_model in ACTION_VALUE_MODEL_KEYWORDS
         model = ctx['model']
@@ -215,6 +225,8 @@ def init_eval_planner_from_args(args: argparse.Namespace, ctx: dict) -> Planner:
 
     if name == 'cem':
         return CEM(args_)
+    if name == 'ecem':
+        return ECEM(args_)
     if name == 'qcem':
         assert args.value_model in ACTION_VALUE_MODEL_KEYWORDS
         model = ctx['model']

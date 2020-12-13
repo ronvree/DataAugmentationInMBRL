@@ -170,6 +170,31 @@ class Log:
 
         self._image_folders[folder_name].append(f'{image_name}.{extension}')
 
+    def log_n_observations(self,  # TODO -- had no time to implement this properly (merge with function above)
+                           folder_name: str,
+                           image_name: str,
+                           observations: list,
+                           extension: str = 'png'
+                           ):
+        """
+        Log multiple observation tensors
+        :param folder_name: The name of the folder in which the observations are stored
+        :param image_name: The name of the file in which the observations should be stored
+
+        :param extension: determines in what format the file is stored. (.png by default)
+        """
+        if folder_name not in self._image_folders.keys():
+            raise Exception('Image folder not registered!')
+        if not os.path.isdir(self._log_dir + f'/{folder_name}'):
+            raise Exception('Image folder does not exist!')
+
+        path = self._log_dir + f'/{folder_name}/{image_name}.{extension}'
+
+        observations = torchvision.utils.make_grid(observations, range=(0, 255), normalize=True)
+        torchvision.utils.save_image(observations, path)
+
+        self._image_folders[folder_name].append(f'{image_name}.{extension}')
+
     def log_model(self, model_name: str, model: torch.nn.Module):
         """
         Save model (including weights) to disk

@@ -6,6 +6,7 @@ import torch
 
 from thesis.environment.env import Environment
 from thesis.planner.planner import Planner
+from thesis.rssm.extended.rssm_extended import ERSSM
 
 
 class CEM(Planner):
@@ -214,6 +215,60 @@ class CEM(Planner):
                             help='Number of environments used simultaneouly for planning')
 
         return parser
+
+
+class ECEM(CEM):
+
+    def __init__(self, args: argparse.Namespace):
+        super().__init__(args)
+
+    def plan(self, env: ERSSM, *args, **kwargs):
+        assert isinstance(env, ERSSM)
+        return super().plan(env, *args, **kwargs)
+
+    def _evaluate_action_candidates(self, candidates: torch.Tensor, environment: ERSSM):
+        """
+        Score each of the action sequence candidates
+        :param candidates: Tensor containing each of the action sequence candidates
+                            shape: (batch_size, num_candidates, horizon_distance,) + action_shape
+        :param environment: Environment in which the action sequences are evaluated
+        :return: tensor containing scores for each of the candidates
+                    shape: (batch_size, num_candidates)
+        """
+        # Check which device should be used (cpu/gpu)
+        device = candidates.device
+        # Get the initial state of the environment
+        init_env_state = environment.get_state()
+        # Get the batch size
+        batch_size = candidates.size(0)
+        # Store scores for all candidates
+        candidate_returns = list()
+        # Loop through all candidate tensors
+        for j, candidate in enumerate(candidates.split(1, dim=1)):
+            # Remove the redundant candidate dimension of the single candidate action sequence (batch)
+            # Shape: (batch_size, horizon_distance,) + action_shape
+            candidate = candidate.squeeze(1)
+            # Keep track of the total return
+            reward_total = torch.zeros(batch_size, 1, device=device)
+            # Separate the tensor into multiple action tensors
+            actions = [action.squeeze(1) for action in candidate.split(1, dim=1)]
+            # Execute all but the last action in the environment
+            for tau, action in enumerate(actions[:-1]):
+                # An observation is only required at the last iteration. Not rendering saves a lot of time
+                not_last_iter = bool(len(actions) - tau - 2)
+                # Execute the action
+                _, reward, flag, info = environment.step(action, no_observation=not_last_iter)
+                # Add to the total reward
+                reward_total += reward.view(-1, 1).to(device)
+            # Use the q-model to estimate the return of the final action
+            reward_total += environment.state_action_value(actions[-1]).to(device)
+            # Store the return estimate of this candidate
+            candidate_returns.append(reward_total)
+            # Reset environment for the next candidate
+            environment.set_state(init_env_state)
+        # Concatenate the returns to one tensor
+        returns = torch.cat(candidate_returns, dim=1)  # Shape: (batch_size, num_candidates)
+        return returns
 
 
 class QCEM(CEM):

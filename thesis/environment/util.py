@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 
-def preprocess_observation(observation: np.ndarray, bit_depth: int) -> torch.Tensor:
+def preprocess_observation(observation: np.ndarray, bit_depth: int, image_size: tuple) -> torch.Tensor:
     """
     Perform the preprocessing steps for raw observations from the environment model
     :param observation: the observation obtained from the environment model as numpy ndarray
@@ -16,7 +16,7 @@ def preprocess_observation(observation: np.ndarray, bit_depth: int) -> torch.Ten
                 shape: (num_channels, 64, 64)
     """
     # Resize observation
-    o = cv2.resize(observation, (64, 64), interpolation=cv2.INTER_LINEAR)
+    o = cv2.resize(observation, image_size, interpolation=cv2.INTER_LINEAR)
 
     # Move channel dimension, cast to tensor
     o = torch.tensor(o.transpose(2, 0, 1), dtype=torch.float32)

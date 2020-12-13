@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader, BatchSampler, RandomSampler
 
 from thesis.data.augmentation.data_augmentation import from_keyword
 from thesis.data.experience_replay_episodes import ExperienceReplay
+from thesis.rssm.extended.rssm_extended import ERSSM
 from thesis.rssm.rssm import RSSM
 from thesis.util.func import batch_tensors
 from thesis.util.logging import Log
@@ -41,6 +42,7 @@ class Trainer:
         self._c_r_loss = args.rssm_reward_loss_weight
         self._c_o_loss = args.rssm_observation_loss_weight
         self._c_kl_loss = args.rssm_kl_loss_weight
+        self._c_v_loss = 1  # TODO -- weight argument
 
         self._data_augmentations = args.data_augmentations or []
         self._state_action_augmentations = args.state_action_augmentations or []
@@ -130,7 +132,7 @@ class Trainer:
         # Create a log for storing info about this train procedure
         train_log = f'{log_prefix}_losses'
         if log is not None:
-            log.create_log(train_log, 'batch', 'total loss', 'reward loss', 'observation loss', 'KL loss')
+            log.create_log(train_log, 'batch', 'total loss', 'reward loss', 'observation loss', 'KL loss', 'value loss')
         # Create a dict for storing info about this train procedure
         info = {}
 
@@ -198,6 +200,7 @@ class Trainer:
                                batch_info['reward_loss'],
                                batch_info['observation_loss'],
                                batch_info['belief_loss'],
+                               batch_info['value_loss']
                                )
 
             # Update progress bar
@@ -248,6 +251,7 @@ class Trainer:
         reward_losses = []
         observation_losses = []
         belief_losses = []
+        value_losses = []
 
         # Switch the episode and batch dimensions
         episode = tuple([Trainer._switch_dims(xs) for xs in episode])
@@ -263,6 +267,9 @@ class Trainer:
 
         # Simulate the trajectory in the model
         for t, (o, a, r, o_, a_, o_aug) in enumerate(zip(*episode, o_augmented)):
+            # Optionally, get a value function estimate
+            predicted_v = model.state_action_value(a) if isinstance(model, ERSSM) else None
+
             # Get prediction (distributions) from the environment model
             predicted_o_, predicted_r, predicted_s, _, _ = model.simulate_step(a)
 
@@ -297,17 +304,31 @@ class Trainer:
             # Add to all losses
             belief_losses.append(belief_loss)
 
+            # Optionally, train the value function
+            if isinstance(model, ERSSM):
+                # Compute the target by bootstrapping
+                with torch.no_grad():
+                    value_target = r + model.state_action_value(a_)
+                # Compute value loss
+                value_loss = F.mse_loss(predicted_v, value_target)
+                value_losses.append(value_loss)
+
         # Compute total loss components
         reward_loss = torch.mean(batch_tensors(*reward_losses)) * self._c_r_loss
         observation_loss = torch.mean(batch_tensors(*observation_losses)) * self._c_o_loss
         belief_loss = torch.mean(batch_tensors(*belief_losses)) * self._c_kl_loss
+        if len(value_losses) > 0:
+            value_loss = torch.mean(batch_tensors(*value_losses)) * self._c_v_loss
+        else:
+            value_loss = torch.zeros(1, device=reward_loss.device)
         # Compute total loss
-        loss = reward_loss + observation_loss + belief_loss
+        loss = reward_loss + observation_loss + belief_loss + value_loss
 
         # Store relevant information in info dict
         info['reward_loss'] = reward_loss.item()
         info['observation_loss'] = observation_loss.item()
         info['belief_loss'] = belief_loss.item()
+        info['value_loss'] = value_loss.item()
         info['loss'] = loss.item()
 
         return loss, info
@@ -336,8 +357,9 @@ class Trainer:
         r_loss = batch_info['reward_loss']
         o_loss = batch_info['observation_loss']
         b_loss = batch_info['belief_loss']
+        v_loss = batch_info['value_loss']
         loss = batch_info['loss']
 
-        s = f'Loss: {loss:.3f} = R: {r_loss:.3f} + O: {o_loss:.3f} + KL: {b_loss:.3f}'
+        s = f'Loss: {loss:.3f} = R: {r_loss:.3f} + O: {o_loss:.3f} + KL: {b_loss:.3f} + V: {v_loss:.3f}'
 
         return s

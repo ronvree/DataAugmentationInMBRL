@@ -32,10 +32,17 @@ class BeliefEncoder(nn.Module):
         # Conv layers affect feature map size by  size = (size - (kernel_size - 1) + 1) // stride
         self.conv1 = nn.Conv2d(3, 32, kernel_size=5, stride=2)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=4, stride=2)
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=4, stride=2)
 
-        self.lin_os = nn.Linear(1024, encoding_size) if encoding_size != 1024 else nn.Identity()
+        if not args.downscale_observations:
+            out_size = 1024
+            self.conv3 = nn.Conv2d(64, 128, kernel_size=4, stride=2)
+            self.conv4 = nn.Conv2d(128, 256, kernel_size=4, stride=2)
+        else:
+            out_size = 256
+            self.conv3 = nn.Conv2d(64, 64, kernel_size=4, stride=2)
+            self.conv4 = nn.Identity()
+
+        self.lin_os = nn.Linear(out_size, encoding_size) if encoding_size != out_size else nn.Identity()
         self.lin_embed = nn.Linear(hidden_size + encoding_size, encoder_size)
 
         self.lin_mean = nn.Linear(encoder_size, latent_size)
@@ -98,11 +105,13 @@ if __name__ == '__main__':
     _args.encoding_size = 64
     _args.encoder_model_size = 200
     _args.state_model_min_std = 0.1
+    _args.downscale_observations = True
 
     _model = BeliefEncoder(_args)
 
     _bs = 4
-    _observation_shape = (3, 64, 64)
+    _image_size = 32 if _args.downscale_observations else 64
+    _observation_shape = (3, _image_size, _image_size)
 
     _hs = torch.randn(_bs, _args.deterministic_state_size)
     _os = torch.randn(_bs, *_observation_shape)

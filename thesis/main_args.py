@@ -7,6 +7,7 @@ from thesis.data.experience_replay_episodes import ExperienceReplay
 from thesis.environment.env import Environment
 from thesis.main_helpers_init import VALUE_MODEL_KEYWORDS, ACTION_VALUE_MODEL_KEYWORDS, DUMMY_VALUE_MODEL_KEYWORDS
 from thesis.planner.cem import CEM, QCEM, VCEM
+from thesis.rssm.extended.rssm_extended import ERSSM
 from thesis.rssm.rssm import RSSM
 from thesis.value_model.trainer import Trainer as ValueTrainer
 from thesis.rssm.trainer import Trainer as RSSMTrainer
@@ -55,20 +56,24 @@ def get_main_argument_parser() -> argparse.ArgumentParser:
                         type=int,
                         default=np.inf,
                         help='The number of main loops that should be executed')
+    parser.add_argument('--downscale_observations',
+                        action='store_true',
+                        help='Environment observations are scaled to 32x32 rather than 64x64. Encoder/decoder '
+                             'architectures are modified accordingly.')
 
     parser.add_argument('--planner',
                         type=str,
-                        choices=['debug', 'random', 'cem', 'qcem', 'vcem'],
+                        choices=['debug', 'random', 'cem', 'qcem', 'vcem', 'ecem'],
                         default='cem',
                         help='Select which planning algorithm is used for data collection')
     parser.add_argument('--eval_planner',
                         type=str,
-                        choices=['debug', 'random', 'cem', 'qcem', 'vcem'],
+                        choices=['debug', 'random', 'cem', 'qcem', 'vcem', 'ecem'],
                         default='cem',
                         help='Select which planning algorithm is used for evaluation')
     parser.add_argument('--plan_env_type',
                         type=str,
-                        choices=['true', 'rssm'],
+                        choices=['true', 'rssm', 'erssm'],
                         default='rssm',
                         help='Controls whether a true environment model is used for planning, or a learned '
                              'approximation (RSSM)')
@@ -125,9 +130,11 @@ def get_parsed_arguments() -> argparse.Namespace:
     # Handle planner environment model args
     if args.plan_env_type == 'rssm':
         RSSM.get_argument_parser().parse_known_args(namespace=args)
+    if args.plan_env_type == 'erssm':
+        ERSSM.get_argument_parser().parse_known_args(namespace=args)
 
     # Handle planner environment trainer args
-    if args.plan_env_type == 'rssm':
+    if args.plan_env_type == 'rssm' or args.plan_env_type == 'erssm':
         RSSMTrainer.get_argument_parser().parse_known_args(namespace=args)
 
     # Handle value function model args
@@ -172,6 +179,7 @@ def get_placeholder_args() -> argparse.Namespace:
     args.planner = main_parser.get_default('planner')
     args.eval_planner = main_parser.get_default('eval_planner')
     args.value_model = main_parser.get_default('value_model')
+    args.downscale_observations = main_parser.get_default('downscale_observations')
     # args.optimizer = main_parser.get_default('optimizer')
     # args.num_train_iter = main_parser.get_default('num_train_iter')
     args.num_seed_episodes = main_parser.get_default('num_seed_episodes')
@@ -241,6 +249,17 @@ def get_placeholder_args() -> argparse.Namespace:
         args.state_model_min_std = rssm_parser.get_default('state_model_min_std')
         args.encoding_size = rssm_parser.get_default('encoding_size')
         args.rssm_sample_mean = rssm_parser.get_default('rssm_sample_mean')
+    if args.plan_env_type == 'erssm':
+        rssm_parser = ERSSM.get_argument_parser()
+        args.value_model_size = rssm_parser.get_default('value_model_size')
+        args.deterministic_state_size = rssm_parser.get_default('deterministic_state_size')
+        args.stochastic_state_size = rssm_parser.get_default('stochastic_state_size')
+        args.reward_model_size = rssm_parser.get_default('reward_model_size')
+        args.encoder_model_size = rssm_parser.get_default('encoder_model_size')
+        args.state_model_size = rssm_parser.get_default('state_model_size')
+        args.state_model_min_std = rssm_parser.get_default('state_model_min_std')
+        args.encoding_size = rssm_parser.get_default('encoding_size')
+        args.rssm_sample_mean = rssm_parser.get_default('rssm_sample_mean')
 
     # VALUE MODEL TRAINER ARGS
     if args.value_model in VALUE_MODEL_KEYWORDS + ACTION_VALUE_MODEL_KEYWORDS + DUMMY_VALUE_MODEL_KEYWORDS:
@@ -248,7 +267,7 @@ def get_placeholder_args() -> argparse.Namespace:
         pass  # TODO
 
     # PLAN ENVIRONMENT TRAINER ARGS
-    if args.plan_env_type == 'rssm':
+    if args.plan_env_type == 'rssm' or args.plan_env_type == 'erssm':
         rssm_trainer_parser = RSSMTrainer.get_argument_parser()
 
         args.num_train_sequences = rssm_trainer_parser.get_default('num_train_sequences')

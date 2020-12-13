@@ -63,6 +63,8 @@ class ControlSuiteEnvironment(Environment):
 
         # Get bit depth for preprocessing the observations
         self._bit_depth = args.bit_depth
+        # Get the size of observations
+        self._observation_size = (32, 32) if args.downscale_observations else (64, 64)
 
     @property
     def batch_size(self):
@@ -116,7 +118,7 @@ class ControlSuiteEnvironment(Environment):
             # Get raw pixel observations
             pixels_tuple = self._pixels()
             # Preprocess all observations
-            results = [(preprocess_observation(image, self._bit_depth), t, info)
+            results = [(preprocess_observation(image, self._bit_depth, self._observation_size), t, info)
                        for image, (_, t, info) in zip(pixels_tuple, results)]
 
             # Add raw pixels to all info dicts
@@ -206,7 +208,7 @@ class ControlSuiteEnvironment(Environment):
             # Get raw pixels from all environments
             pixels_tuple = self._pixels()
             # Convert them to suitable observations
-            observations = [preprocess_observation(o, self._bit_depth) for o in pixels_tuple]
+            observations = [preprocess_observation(o, self._bit_depth, self._observation_size) for o in pixels_tuple]
             # Merge the observations in the results
             results = [(o,) + result[1:] for o, result in zip(observations, results)]
 

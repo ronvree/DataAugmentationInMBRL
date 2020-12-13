@@ -59,6 +59,13 @@ def negate(t: torch.Tensor) -> torch.Tensor:
     return -t
 
 
+def random_translate_hack(imgs: torch.Tensor):
+    if imgs.shape[-1] == 32:
+        return random_translate(imgs, out=38)
+    else:
+        return random_translate(imgs)
+
+
 """
 
     STATE-ACTION AUGMENTATIONS
@@ -96,7 +103,7 @@ def from_keyword(kw: str) -> callable:
     :return: the data augmentation function.
     """
     if kw == 'random_translate':
-        return random_translate
+        return random_translate_hack  # TODO -- remove this hack
     if kw == 'fixed_translate':
         return fixed_translate
     if kw == 'vertical_flip':

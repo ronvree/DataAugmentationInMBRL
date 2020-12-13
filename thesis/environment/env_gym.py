@@ -70,6 +70,8 @@ class GymEnv(Environment):
 
         # Get bit depth for preprocessing the observations
         self._bit_depth = args.bit_depth
+        # Get the size of observations
+        self._observation_size = (32, 32) if args.downscale_observations else (64, 64)
 
     @property
     def batch_size(self):
@@ -106,7 +108,7 @@ class GymEnv(Environment):
             # Get raw pixel observations of the environments
             pixels_tuple = self._pixels()
             # Process the image observations
-            observations = [preprocess_observation(o, self._bit_depth) for o in pixels_tuple]
+            observations = [preprocess_observation(o, self._bit_depth, self._observation_size) for o in pixels_tuple]
             # observations = [self._process_image(o) for o in pixels_tuple]
             # Add raw pixels to the info dict
             for info, pixels in zip(infos, pixels_tuple):
@@ -206,7 +208,7 @@ class GymEnv(Environment):
             # Get raw pixel observations of the environments
             pixels_tuple = self._pixels()
             # Convert them to suitable observations
-            observations = [preprocess_observation(o, self._bit_depth) for o in pixels_tuple]
+            observations = [preprocess_observation(o, self._bit_depth, self._observation_size) for o in pixels_tuple]
             # Merge the observations in the results
             results = [(o,) + result[1:] for o, result in zip(observations, results)]
 
@@ -262,14 +264,14 @@ class GymEnv(Environment):
         return actions
 
     @property
-    def observation_shape(self) -> tuple:  # TODO -- observations are reshaped to 64x64!!
+    def observation_shape(self) -> tuple:
         """
         :return: a tuple describing the shape of observations
         """
         if self._state_obs:
             return self._envs[0].observation_space.shape
         else:
-            return 3, 500, 500  # TODO -- is this true for all envs??
+            return (3,) + self._observation_size
 
     @property
     def action_shape(self) -> tuple:

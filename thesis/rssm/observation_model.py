@@ -25,10 +25,16 @@ class ObservationModel(nn.Module):
         encoding_size = args.encoding_size
 
         self.lin = nn.Linear(hs_size + ss_size, encoding_size)
-        self.conv1 = nn.ConvTranspose2d(encoding_size, 128, 5, stride=2)
-        self.conv2 = nn.ConvTranspose2d(128, 64, 5, stride=2)
-        self.conv3 = nn.ConvTranspose2d(64, 32, 6, stride=2)
-        self.conv4 = nn.ConvTranspose2d(32, 3, 6, stride=2)
+        if not args.downscale_observations:
+            self.conv1 = nn.ConvTranspose2d(encoding_size, 128, 5, stride=2)
+            self.conv2 = nn.ConvTranspose2d(128, 64, 5, stride=2)
+            self.conv3 = nn.ConvTranspose2d(64, 32, 6, stride=2)
+            self.conv4 = nn.ConvTranspose2d(32, 3, 6, stride=2)
+        else:
+            self.conv1 = nn.ConvTranspose2d(encoding_size, 128, 5, stride=2)
+            self.conv2 = nn.ConvTranspose2d(128, 32, 6, stride=2)
+            self.conv3 = nn.Identity()
+            self.conv4 = nn.ConvTranspose2d(32, 3, 6, stride=2)
 
         self.sample_mean = args.rssm_sample_mean
 
@@ -84,6 +90,8 @@ if __name__ == '__main__':
     _args.deterministic_state_size = 50
     _args.stochastic_state_size = 50
     _args.encoding_size = 1024
+    _args.rssm_sample_mean = False
+    _args.downscale_observations = True
 
     _model = ObservationModel(_args)
 

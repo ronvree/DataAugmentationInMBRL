@@ -309,7 +309,12 @@ if __name__ == '__main__':
     # _args.environment_name = CONTROL_SUITE_ENVS[7]
     _args.environment_name = GYM_ENVS[0]
 
+    _args.downscale_observations = True
+
     _args.plan_env_type = 'rssm'
+    # _args.plan_env_type = 'erssm'
+    _args.value_model_size = 200
+
     # _args.plan_env_type = 'true'
     _args.disable_cuda = True
 
@@ -318,7 +323,8 @@ if __name__ == '__main__':
     # _args.num_plan_candidates = 40
     # _args.num_plan_top_candidates = int(_args.num_plan_candidates // 1.3)
 
-    # _args.planner = 'cem'
+    _args.planner = 'cem'
+    # _args.eval_planner = 'ecem'
     _args.planner = 'random'
     # _args.disable_cuda = False
 
@@ -326,7 +332,8 @@ if __name__ == '__main__':
 
     # _args.checkpoint_period = 1
     _args.checkpoint_period = np.inf
-    _args.evaluation_period = 50
+    # _args.evaluation_period = 50
+    _args.evaluation_period = 2
 
     # _args.disable_data_collection = True
     # _args.disable_training = True
@@ -336,7 +343,7 @@ if __name__ == '__main__':
     # _args.state_observations = True
 
     # _args.data_augmentations = []
-    # _args.data_augmentations = ['random_translate']
+    _args.data_augmentations = ['random_translate']
 
     _args.state_action_augmentations = []
 
