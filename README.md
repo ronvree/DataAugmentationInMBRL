@@ -1,3 +1,3 @@
 # DataAugmentationInMBRL
 
-![Demo](https://github.com/ronvree/DataAugmentationInMBRL/blob/master/progress.avi) 
+![Demo](https://github.com/ronvree/DataAugmentationInMBRL/blob/master/progress.gif) 
